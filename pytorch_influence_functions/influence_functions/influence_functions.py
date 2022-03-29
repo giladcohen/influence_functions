@@ -123,17 +123,14 @@ def calc_grad_z(model, train_loader, save_pth=False, gpu=-1, start=0):
     return grad_zs, save_pth
 
 
-def load_s_test(
-    s_test_dir=Path("./s_test/"), s_test_id=0, r_sample_size=10, train_dataset_size=-1, suffix='recdep500_r1'
-):
+def load_s_test(s_test_dir=Path("./s_test/"), test_dataset_size=10, suffix='recdep500_r1'):
     """Loads all s_test data required to calculate the influence function
     and returns a list of it.
 
     Arguments:
         s_test_dir: Path, folder containing files storing the s_test values
         s_test_id: int, number of the test data sample s_test was calculated for
-        r_sample_size: int, number of s_tests precalculated per test dataset point
-        train_dataset_size: int, number of total samples in dataset; -1 indicates to use all available grad_z files
+        test_dataset_size: int, number of s_tests vectors expected
 
     Returns:
         e_s_test: list of torch vectors, contains all e_s_tests for the whole dataset.
@@ -144,35 +141,41 @@ def load_s_test(
     s_test = []
     logging.info(f"Loading s_test from: {s_test_dir} ...")
     num_s_test_files = len(list(s_test_dir.glob("*.s_test")))
-    if num_s_test_files != r_sample_size:
+    if num_s_test_files != test_dataset_size:
         logging.warning(
             "Load Influence Data: number of s_test sample files"
             " mismatches the available samples"
         )
-    ########################
-    # TODO: should prob. not hardcode the file name, use natsort+glob
-    ########################
     for i in range(num_s_test_files):
-        # s_test.append(torch.load(s_test_dir / str(s_test_id) + f"_{i}.s_test"))
         s_test.append(torch.load(os.path.join(s_test_dir, str(i) + '_' + suffix + '.s_test')))
-        display_progress("s_test files loaded: ", i, r_sample_size)
+        display_progress("s_test files loaded: ", i, test_dataset_size)
 
-    #########################
-    # TODO: figure out/change why here element 0 is chosen by default
-    #########################
-    e_s_test = s_test[0]
-    # Calculate the sum
-    for i in range(len(s_test)):
-        e_s_test = [i + j for i, j in zip(e_s_test, s_test[0])]
+    return s_test
 
-    # Calculate the average
-    #########################
-    # TODO: figure out over what to calculate the average
-    #       should either be r_sample_size OR e_s_test
-    #########################
-    e_s_test = [i / len(s_test) for i in e_s_test]
 
-    return e_s_test, s_test
+def calc_all_influences(grad_z_dir, train_dataset_size, s_test_dir, test_dataset_size):
+    grad_z_vecs = load_grad_z(grad_z_dir=grad_z_dir, train_dataset_size=train_dataset_size)
+    suffix = 'recdep{}_r1'.format(train_dataset_size)
+    s_test_vecs = load_s_test(s_test_dir=s_test_dir, test_dataset_size=test_dataset_size, suffix=suffix)
+
+    influences = torch.zeros(test_dataset_size, train_dataset_size)
+    for i in tqdm(range(test_dataset_size)):
+        s_test_vec = s_test_vecs[i]
+        for j in range(train_dataset_size):
+            grad_z_vec = grad_z_vecs[j]
+            with torch.no_grad():
+                tmp_influence = (
+                        -sum(
+                            [
+                                torch.sum(k * j).data
+                                for k, j in zip(grad_z_vec, s_test_vec)
+                            ]
+                        )
+                        / train_dataset_size
+                )
+            influences[i, j] = tmp_influence
+    influences = influences.cpu().numpy()
+    return influences
 
 
 def load_grad_z(grad_z_dir=Path("./grad_z/"), train_dataset_size=-1):
