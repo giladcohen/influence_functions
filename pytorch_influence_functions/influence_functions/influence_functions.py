@@ -1,5 +1,5 @@
 #! /usr/bin/env python3
-
+import os
 import torch
 import time
 import datetime
@@ -124,31 +124,26 @@ def calc_grad_z(model, train_loader, save_pth=False, gpu=-1, start=0):
 
 
 def load_s_test(
-    s_test_dir=Path("./s_test/"), s_test_id=0, r_sample_size=10, train_dataset_size=-1
+    s_test_dir=Path("./s_test/"), s_test_id=0, r_sample_size=10, train_dataset_size=-1, suffix='recdep500_r1'
 ):
     """Loads all s_test data required to calculate the influence function
     and returns a list of it.
 
     Arguments:
         s_test_dir: Path, folder containing files storing the s_test values
-        s_test_id: int, number of the test data sample s_test was calculated
-            for
-        r_sample_size: int, number of s_tests precalculated
-            per test dataset point
-        train_dataset_size: int, number of total samples in dataset;
-            -1 indicates to use all available grad_z files
+        s_test_id: int, number of the test data sample s_test was calculated for
+        r_sample_size: int, number of s_tests precalculated per test dataset point
+        train_dataset_size: int, number of total samples in dataset; -1 indicates to use all available grad_z files
 
     Returns:
-        e_s_test: list of torch vectors, contains all e_s_tests for the whole
-            dataset.
-        s_test: list of torch vectors, contain all s_test for the whole
-            dataset. Can be huge."""
+        e_s_test: list of torch vectors, contains all e_s_tests for the whole dataset.
+        s_test: list of torch vectors, contain all s_test for the whole dataset. Can be huge."""
     if isinstance(s_test_dir, str):
         s_test_dir = Path(s_test_dir)
 
     s_test = []
     logging.info(f"Loading s_test from: {s_test_dir} ...")
-    num_s_test_files = len(s_test_dir.glob("*.s_test"))
+    num_s_test_files = len(list(s_test_dir.glob("*.s_test")))
     if num_s_test_files != r_sample_size:
         logging.warning(
             "Load Influence Data: number of s_test sample files"
@@ -158,7 +153,8 @@ def load_s_test(
     # TODO: should prob. not hardcode the file name, use natsort+glob
     ########################
     for i in range(num_s_test_files):
-        s_test.append(torch.load(s_test_dir / str(s_test_id) + f"_{i}.s_test"))
+        # s_test.append(torch.load(s_test_dir / str(s_test_id) + f"_{i}.s_test"))
+        s_test.append(torch.load(os.path.join(s_test_dir, str(i) + '_' + suffix + '.s_test')))
         display_progress("s_test files loaded: ", i, r_sample_size)
 
     #########################
@@ -195,15 +191,13 @@ def load_grad_z(grad_z_dir=Path("./grad_z/"), train_dataset_size=-1):
 
     grad_z_vecs = []
     logging.info(f"Loading grad_z from: {grad_z_dir} ...")
-    available_grad_z_files = len(grad_z_dir.glob("*.grad_z"))
+    available_grad_z_files = len(list(grad_z_dir.glob("*.grad_z")))
     if available_grad_z_files != train_dataset_size:
-        logging.warn(
-            "Load Influence Data: number of grad_z files mismatches" " the dataset size"
-        )
+        logging.warning("Load Influence Data: number of grad_z files mismatches" " the dataset size")
         if -1 == train_dataset_size:
             train_dataset_size = available_grad_z_files
     for i in range(train_dataset_size):
-        grad_z_vecs.append(torch.load(grad_z_dir / str(i) + ".grad_z"))
+        grad_z_vecs.append(torch.load(os.path.join(grad_z_dir, str(i) + '.grad_z')))
         display_progress("grad_z files loaded: ", i, train_dataset_size)
 
     return grad_z_vecs
@@ -228,9 +222,7 @@ def calc_influence_function(train_dataset_size, grad_z_vecs=None, e_s_test=None)
         e_s_test, _ = load_s_test(train_dataset_size=train_dataset_size)
 
     if len(grad_z_vecs) != train_dataset_size:
-        logging.warn(
-            "Training data size and the number of grad_z files are" " inconsistent."
-        )
+        logging.warning("Training data size and the number of grad_z files are" " inconsistent.")
         train_dataset_size = len(grad_z_vecs)
 
     influences = []
