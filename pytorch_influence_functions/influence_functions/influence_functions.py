@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
 import os
 import torch
+from torch.utils.data import TensorDataset, DataLoader
 import time
 import datetime
 import numpy as np
@@ -255,6 +256,17 @@ def calc_influence_function(train_dataset_size, grad_z_vecs=None, e_s_test=None)
     helpful = harmful[::-1]
 
     return influences, harmful.tolist(), helpful.tolist()
+
+def calc_self_influence(X, y, net):
+    influences = []
+    for i in range(X.shape[0]):
+        tensor_dataset = TensorDataset(torch.from_numpy(np.expand_dims(X[i], 0)),
+                                       torch.from_numpy(np.expand_dims(y[i], 0)))
+        loader = DataLoader(tensor_dataset, batch_size=1, shuffle=False,
+                            pin_memory=False, drop_last=False)
+        influence, _, _, _ = calc_influence_single(net, loader, loader, 0, 0, 1, 1)
+        influences.append(influence.item())
+    return np.asarray(influences)
 
 
 def calc_influence_single(

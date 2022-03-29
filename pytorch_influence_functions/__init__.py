@@ -4,6 +4,7 @@ from .influence_functions.influence_functions import (
     calc_img_wise,
     calc_all_grad_then_test,
     calc_influence_single,
+    calc_self_influence,
     s_test_sample,
 )
 from .influence_functions.utils import (
