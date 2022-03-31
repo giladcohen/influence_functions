@@ -268,6 +268,19 @@ def calc_self_influence(X, y, net):
         influences.append(influence.item())
     return np.asarray(influences)
 
+def calc_single_influences(X_train, y_train, test_loader, net):
+    train_size = X_train.shape[0]
+    test_size = test_loader.dataset.__len__()
+    influence_mat = np.zeros((test_size, train_size))
+    for i in tqdm(range(test_size)):
+        for j in range(train_size):
+            tensor_dataset = TensorDataset(torch.from_numpy(np.expand_dims(X_train[j], 0)),
+                                           torch.from_numpy(np.expand_dims(y_train[j], 0)))
+            train_loader = DataLoader(tensor_dataset, batch_size=1, shuffle=False,
+                                      pin_memory=False, drop_last=False)
+            influence, _, _, _ = calc_influence_single(net, train_loader, test_loader, i, 0, 1, 1)
+            influence_mat[i, j] = influence.item()
+    return influence_mat
 
 def calc_influence_single(
     model,
