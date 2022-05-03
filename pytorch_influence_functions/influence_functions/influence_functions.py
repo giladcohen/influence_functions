@@ -259,7 +259,7 @@ def calc_influence_function(train_dataset_size, grad_z_vecs=None, e_s_test=None)
 
     return influences, harmful.tolist(), helpful.tolist()
 
-def calc_self_influence_adaptive(X, y, net):
+def calc_self_influence_adaptive(X, y, net, rec_dep, r):
     influences = []
     img_size = X.shape[2]
     pad_size = int(img_size / 8)
@@ -275,18 +275,18 @@ def calc_self_influence_adaptive(X, y, net):
                                      torch.from_numpy(np.expand_dims(y[i], 0)))
         train_loader = DataLoader(train_dataset, batch_size=1, shuffle=False, pin_memory=False, drop_last=False)
         test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, pin_memory=False, drop_last=False)
-        influence, _, _, _ = calc_influence_single(net, train_loader, test_loader, 0, 0, 10, 10)
+        influence, _, _, _ = calc_influence_single(net, train_loader, test_loader, 0, 0, rec_dep, r)
         influences.append(influence.item())
     return np.asarray(influences)
 
-def calc_self_influence(X, y, net):
+def calc_self_influence(X, y, net, rec_dep, r):
     influences = []
     for i in range(X.shape[0]):
         tensor_dataset = TensorDataset(torch.from_numpy(np.expand_dims(X[i], 0)),
                                        torch.from_numpy(np.expand_dims(y[i], 0)))
         loader = DataLoader(tensor_dataset, batch_size=1, shuffle=False,
                             pin_memory=False, drop_last=False)
-        influence, _, _, _ = calc_influence_single(net, loader, loader, 0, 0, 1, 1)
+        influence, _, _, _ = calc_influence_single(net, loader, loader, 0, 0, rec_dep, r)
         influences.append(influence.item())
     return np.asarray(influences)
 
