@@ -451,7 +451,7 @@ def calc_influence_single_adaptive(
     if time_logging:
         time_a = datetime.datetime.now()
 
-    for i in range(32):
+    for i in range(128):
         z, t = train_loader.dataset[0]
         z = train_loader.collate_fn([z])
         t = train_loader.collate_fn([t])
