@@ -446,12 +446,14 @@ def calc_influence_single_adaptive(
     train_dataset_size = len(train_loader.dataset)
     assert train_dataset_size == 1
     influences = []
-    grad_z_vec_all = None
-    # for i in tqdm(range(train_dataset_size)):
+    num_layers = sum(1 for x in model.parameters())
+    num_iters = 128
+    grad_z_vec = []
+
     if time_logging:
         time_a = datetime.datetime.now()
 
-    for i in range(128):
+    for i in range(num_iters):
         z, t = train_loader.dataset[0]
         z = train_loader.collate_fn([z])
         t = train_loader.collate_fn([t])
@@ -461,19 +463,15 @@ def calc_influence_single_adaptive(
         # plt.imshow(z_img)
         # plt.show()
 
-        grad_z_vec = list(grad_z(z, t, model, gpu=gpu))
-
-        if grad_z_vec_all is None:
-            grad_z_vec_all = dict()
-            num_layers = len(grad_z_vec)
-            for j in range(num_layers):
-                grad_z_vec_all[j] = []
-
+        grad_z_vec_tmp = list(grad_z(z, t, model, gpu=gpu))
         for j in range(num_layers):
-            grad_z_vec_all[j].append(grad_z_vec[j])
+            if i == 0:
+                grad_z_vec.append(torch.zeros_like(grad_z_vec_tmp[j]))
+            else:
+                grad_z_vec[j] += grad_z_vec_tmp[j]
 
     for j in range(num_layers):
-        grad_z_vec[j] = torch.stack(grad_z_vec_all[j]).mean(dim=0)
+        grad_z_vec[j] /= num_iters
 
     if time_logging:
         time_b = datetime.datetime.now()
