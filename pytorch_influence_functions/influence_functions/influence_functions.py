@@ -23,6 +23,10 @@ from pytorch_influence_functions.influence_functions.utils import (
 
 from research.datasets.my_vision_dataset import MyVisionDataset
 
+# debug
+from research.utils import convert_tensor_to_image
+import matplotlib.pyplot as plt
+
 def calc_s_test(
     model,
     test_loader,
@@ -275,7 +279,7 @@ def calc_self_influence_adaptive(X, y, net, rec_dep, r):
                                      torch.from_numpy(np.expand_dims(y[i], 0)))
         train_loader = DataLoader(train_dataset, batch_size=1, shuffle=False, pin_memory=False, drop_last=False)
         test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, pin_memory=False, drop_last=False)
-        influence, _, _, _ = calc_influence_single(net, train_loader, test_loader, 0, 0, rec_dep, r)
+        influence, _, _, _ = calc_influence_single_adaptive(net, train_loader, test_loader, 0, 0, rec_dep, r)
         influences.append(influence.item())
     return np.asarray(influences)
 
@@ -363,12 +367,12 @@ def calc_influence_single(
         )
 
     # Calculate the influence function
-    train_dataset_size = len(test_loader.dataset)
+    train_dataset_size = len(train_loader.dataset)
     influences = []
     for i in tqdm(range(train_dataset_size)):
-        z, t = test_loader.dataset[i]
-        z = test_loader.collate_fn([z])
-        t = test_loader.collate_fn([t])
+        z, t = train_loader.dataset[i]
+        z = train_loader.collate_fn([z])
+        t = train_loader.collate_fn([t])
 
         if time_logging:
             time_a = datetime.datetime.now()
@@ -397,6 +401,102 @@ def calc_influence_single(
             )
 
         influences.append(tmp_influence)
+
+    influences = torch.stack(influences)
+    influences = influences.cpu().numpy()
+    harmful = np.argsort(influences)
+    helpful = harmful[::-1]
+
+    return influences, harmful.tolist(), helpful.tolist(), test_id_num
+
+
+def calc_influence_single_adaptive(
+    model,
+    train_loader,
+    test_loader,
+    test_id_num,
+    gpu,
+    recursion_depth,
+    r,
+    damp=0.01,
+    scale=25,
+    s_test_vec=None,
+    time_logging=False,
+    loss_func="cross_entropy",
+):
+    # Calculate s_test vectors if not provided
+    if s_test_vec is None:
+        z_test, t_test = test_loader.dataset[test_id_num]
+        z_test = test_loader.collate_fn([z_test])
+        t_test = test_loader.collate_fn([t_test])
+        s_test_vec = s_test_sample(
+            model,
+            z_test,
+            t_test,
+            train_loader,
+            gpu,
+            recursion_depth=recursion_depth,
+            r=r,
+            damp=damp,
+            scale=scale,
+            loss_func=loss_func,
+        )
+
+    # Calculate the influence function
+    train_dataset_size = len(train_loader.dataset)
+    assert train_dataset_size == 1
+    influences = []
+    grad_z_vec_all = None
+    # for i in tqdm(range(train_dataset_size)):
+    if time_logging:
+        time_a = datetime.datetime.now()
+
+    for i in range(32):
+        z, t = train_loader.dataset[0]
+        z = train_loader.collate_fn([z])
+        t = train_loader.collate_fn([t])
+
+        # debug
+        # z_img = convert_tensor_to_image(z[0].cpu().numpy())
+        # plt.imshow(z_img)
+        # plt.show()
+
+        grad_z_vec = list(grad_z(z, t, model, gpu=gpu))
+
+        if grad_z_vec_all is None:
+            grad_z_vec_all = dict()
+            num_layers = len(grad_z_vec)
+            for j in range(num_layers):
+                grad_z_vec_all[j] = []
+
+        for j in range(num_layers):
+            grad_z_vec_all[j].append(grad_z_vec[j])
+
+    for j in range(num_layers):
+        grad_z_vec[j] = torch.stack(grad_z_vec_all[j]).mean(dim=0)
+
+    if time_logging:
+        time_b = datetime.datetime.now()
+        time_delta = time_b - time_a
+        logging.info(
+            f"Time for grad_z iter:" f" {time_delta.total_seconds() * 1000}"
+        )
+    with torch.no_grad():
+        tmp_influence = (
+            -sum(
+                [
+                    ####################
+                    # TODO: potential bottle neck, takes 17% execution time
+                    # torch.sum(k * j).data.cpu().numpy()
+                    ####################
+                    torch.sum(k * j).data
+                    for k, j in zip(grad_z_vec, s_test_vec)
+                ]
+            )
+            / train_dataset_size
+        )
+
+    influences.append(tmp_influence)
 
     influences = torch.stack(influences)
     influences = influences.cpu().numpy()
