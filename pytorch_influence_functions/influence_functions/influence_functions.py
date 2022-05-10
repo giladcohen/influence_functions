@@ -363,12 +363,12 @@ def calc_influence_single(
         )
 
     # Calculate the influence function
-    train_dataset_size = len(test_loader.dataset)
+    train_dataset_size = len(train_loader.dataset)
     influences = []
     for i in tqdm(range(train_dataset_size)):
-        z, t = test_loader.dataset[i]
-        z = test_loader.collate_fn([z])
-        t = test_loader.collate_fn([t])
+        z, t = train_loader.dataset[i]
+        z = train_loader.collate_fn([z])
+        t = train_loader.collate_fn([t])
 
         if time_logging:
             time_a = datetime.datetime.now()
