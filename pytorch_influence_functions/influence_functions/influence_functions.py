@@ -263,6 +263,33 @@ def calc_influence_function(train_dataset_size, grad_z_vecs=None, e_s_test=None)
 
     return influences, harmful.tolist(), helpful.tolist()
 
+def calc_self_influence_average(X, y, net, rec_dep, r):
+    influences = []
+    img_size = X.shape[2]
+    pad_size = int(img_size / 8)
+    train_transform = transforms.Compose([
+        transforms.RandomCrop(img_size, padding=pad_size),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+    ])
+    for i in range(X.shape[0]):
+        train_transform_gen = MyVisionDataset(X[i], y[i], transform=train_transform)  # just for transformations
+        test_dataset = TensorDataset(torch.from_numpy(np.expand_dims(X[i], 0)),
+                                     torch.from_numpy(np.expand_dims(y[i], 0)))
+        test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, pin_memory=False, drop_last=False)
+        influences_tmp = []
+        for k in range(8):
+            X_aug, y_aug = train_transform_gen.__getitem__(0)
+            train_dataset = TensorDataset(torch.from_numpy(np.expand_dims(X_aug, 0)),
+                                          torch.from_numpy(np.expand_dims(y_aug, 0)))
+            train_loader = DataLoader(train_dataset, batch_size=1, shuffle=False,
+                                      pin_memory=False, drop_last=False)
+            influence, _, _, _ = calc_influence_single(net, train_loader, test_loader, 0, 0, rec_dep, r)
+            influences_tmp.append(influence.item())
+
+        influences.append(np.mean(influences_tmp))
+    return np.asarray(influences)
+
 def calc_self_influence_adaptive(X, y, net, rec_dep, r):
     influences = []
     img_size = X.shape[2]

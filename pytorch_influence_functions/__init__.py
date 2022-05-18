@@ -6,6 +6,7 @@ from .influence_functions.influence_functions import (
     calc_influence_single,
     calc_self_influence,
     calc_self_influence_adaptive,
+    calc_self_influence_average,
     s_test_sample,
 )
 from .influence_functions.utils import (
