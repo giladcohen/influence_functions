@@ -310,6 +310,30 @@ def calc_self_influence_adaptive(X, y, net, rec_dep, r):
         influences.append(influence.item())
     return np.asarray(influences)
 
+def calc_self_influence_adaptive_for_ref(X, y, net, rec_dep, r):
+    influences = []
+    img_size = X.shape[2]
+    pad_size = int(img_size / 8)
+    train_transform = transforms.Compose([
+        transforms.RandomCrop(img_size, padding=pad_size),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+    ])
+    test_transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+    ])
+
+    for i in range(X.shape[0]):
+        train_dataset = MyVisionDataset(X[i], y[i], transform=train_transform)
+        test_dataset = MyVisionDataset(X[i], y[i], transform=test_transform)
+        train_loader = DataLoader(train_dataset, batch_size=1, shuffle=False, pin_memory=False, drop_last=False)
+        test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, pin_memory=False, drop_last=False)
+        influence, _, _, _ = calc_influence_single_adaptive(net, train_loader, test_loader, 0, 0, rec_dep, r)
+        influences.append(influence.item())
+    return np.asarray(influences)
+
 def calc_self_influence(X, y, net, rec_dep, r):
     influences = []
     for i in range(X.shape[0]):
@@ -456,6 +480,12 @@ def calc_influence_single_adaptive(
         z_test, t_test = test_loader.dataset[test_id_num]
         z_test = test_loader.collate_fn([z_test])
         t_test = test_loader.collate_fn([t_test])
+
+        # debug
+        # z_img = convert_tensor_to_image(z_test[0].cpu().numpy())
+        # plt.imshow(z_img)
+        # plt.show()
+
         s_test_vec = s_test_sample(
             model,
             z_test,
