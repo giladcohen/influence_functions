@@ -8,6 +8,7 @@ from .influence_functions.influence_functions import (
     calc_self_influence_adaptive,
     calc_self_influence_adaptive_for_ref,
     calc_self_influence_average,
+    calc_self_influence_average_for_ref,
     s_test_sample,
 )
 from .influence_functions.utils import (
