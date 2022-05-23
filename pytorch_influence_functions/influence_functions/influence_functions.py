@@ -354,7 +354,7 @@ def calc_self_influence_adaptive_for_ref(X, y, net, rec_dep, r):
     ])
     test_transform = transforms.Compose([
         transforms.ToTensor(),
-        transforms.Normalize((RGB_MEAN, RGB_STD))
+        transforms.Normalize(RGB_MEAN, RGB_STD)
     ])
 
     for i in range(X.shape[0]):
