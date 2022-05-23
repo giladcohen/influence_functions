@@ -21,6 +21,7 @@ from pytorch_influence_functions.influence_functions.utils import (
     display_progress,
 )
 
+from research.consts import RGB_MEAN, RGB_STD
 from research.datasets.my_vision_dataset import MyVisionDataset
 
 # debug
@@ -298,13 +299,9 @@ def calc_self_influence_average_for_ref(X, y, net, rec_dep, r):
         transforms.RandomCrop(img_size, padding=pad_size),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+        transforms.Normalize(RGB_MEAN, RGB_STD)
     ])
-    # test_transform = transforms.Compose([
-    #     transforms.ToTensor(),
-    #     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
-    # ])
-    test_transform = transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+    test_transform = transforms.Normalize(RGB_MEAN, RGB_STD)
     for i in range(X.shape[0]):
         train_transform_gen = MyVisionDataset(X[i], y[i], transform=train_transform)  # just for transformations
         X_tensor = torch.tensor(X[i])
@@ -324,7 +321,6 @@ def calc_self_influence_average_for_ref(X, y, net, rec_dep, r):
 
         influences.append(np.mean(influences_tmp))
     return np.asarray(influences)
-
 
 def calc_self_influence_adaptive(X, y, net, rec_dep, r):
     influences = []
@@ -354,11 +350,11 @@ def calc_self_influence_adaptive_for_ref(X, y, net, rec_dep, r):
         transforms.RandomCrop(img_size, padding=pad_size),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+        transforms.Normalize(RGB_MEAN, RGB_STD)
     ])
     test_transform = transforms.Compose([
         transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+        transforms.Normalize((RGB_MEAN, RGB_STD))
     ])
 
     for i in range(X.shape[0]):
@@ -374,6 +370,20 @@ def calc_self_influence(X, y, net, rec_dep, r):
     influences = []
     for i in range(X.shape[0]):
         tensor_dataset = TensorDataset(torch.from_numpy(np.expand_dims(X[i], 0)),
+                                       torch.from_numpy(np.expand_dims(y[i], 0)))
+        loader = DataLoader(tensor_dataset, batch_size=1, shuffle=False,
+                            pin_memory=False, drop_last=False)
+        influence, _, _, _ = calc_influence_single(net, loader, loader, 0, 0, rec_dep, r)
+        influences.append(influence.item())
+    return np.asarray(influences)
+
+def calc_self_influence_for_ref(X, y, net, rec_dep, r):
+    influences = []
+    transform = transforms.Normalize(RGB_MEAN, RGB_STD)
+    for i in range(X.shape[0]):
+        X_tensor = torch.tensor(X[i])
+        X_transformed = transform(X_tensor).cpu().numpy()
+        tensor_dataset = TensorDataset(torch.from_numpy(np.expand_dims(X_transformed, 0)),
                                        torch.from_numpy(np.expand_dims(y[i], 0)))
         loader = DataLoader(tensor_dataset, batch_size=1, shuffle=False,
                             pin_memory=False, drop_last=False)
